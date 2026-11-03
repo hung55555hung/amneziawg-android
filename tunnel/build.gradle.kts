@@ -3,10 +3,15 @@
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 
 val pkg: String = providers.gradleProperty("amneziawgPackageName").get()
-val cmakeAndroidPackageName: String = providers.environmentVariable("ANDROID_PACKAGE_NAME").getOrElse(pkg)
+// Package name of the app that embeds this library. amneziawg-go puts its UAPI
+// socket under /data/data/<package>/cache/amneziawg (non-fatal if wrong).
+val cmakeAndroidPackageName: String = providers.environmentVariable("ANDROID_PACKAGE_NAME")
+    .orElse(providers.gradleProperty("awgHostAppPackageName"))
+    .getOrElse(pkg)
 
 plugins {
     alias(libs.plugins.android.library)
+    `maven-publish`
 }
 
 android {
@@ -15,6 +20,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     namespace = "${pkg}.tunnel"
+    defaultConfig {
+        consumerProguardFiles("consumer-rules.pro")
+    }
     externalNativeBuild {
         cmake {
             path("tools/CMakeLists.txt")
@@ -27,7 +35,7 @@ android {
         all {
             externalNativeBuild {
                 cmake {
-                    targets("libwg-go.so", "libwg.so", "libwg-quick.so")
+                    targets("libawg-go.so")
                     arguments("-DGRADLE_USER_HOME=${project.gradle.gradleUserHomeDir}")
                 }
             }
@@ -51,6 +59,11 @@ android {
         disable += "LongLogTag"
         disable += "NewApi"
     }
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+        }
+    }
 }
 
 dependencies {
@@ -58,4 +71,20 @@ dependencies {
     implementation(libs.androidx.collection)
     compileOnly(libs.jsr305)
     testImplementation(libs.junit)
+}
+
+// JitPack: coordinates com.github.hung55555hung:amneziawg-android:<tag>
+afterEvaluate {
+    publishing {
+        publications {
+            create<MavenPublication>("release") {
+                from(components["release"])
+                groupId = providers.gradleProperty("publishGroup").getOrElse("com.github.hung55555hung")
+                artifactId = "amneziawg-android"
+                version = providers.environmentVariable("VERSION")
+                    .orElse(providers.gradleProperty("amneziawgVersionName"))
+                    .get()
+            }
+        }
+    }
 }

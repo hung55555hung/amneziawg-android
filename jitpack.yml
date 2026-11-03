@@ -1,0 +1,20 @@
+# JitPack build for the StarNest fork of amneziawg-android (tunnel module only).
+# Result: com.github.hung55555hung:amneziawg-android:<tag>
+jdk:
+  - openjdk17
+before_install:
+  - |
+    set -e
+    SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/opt/android-sdk-linux}}"
+    SDKM="$(ls -d "$SDK"/cmdline-tools/*/bin/sdkmanager "$SDK"/tools/bin/sdkmanager 2>/dev/null | head -1 || true)"
+    if [ -z "$SDKM" ]; then
+      mkdir -p "$SDK/cmdline-tools"
+      curl -sSLo /tmp/cmdtools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+      unzip -q /tmp/cmdtools.zip -d "$SDK/cmdline-tools" && mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+      SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+    fi
+    yes | "$SDKM" --sdk_root="$SDK" --licenses > /dev/null || true
+    "$SDKM" --sdk_root="$SDK" "ndk;27.0.12077973" "cmake;3.22.1" "platforms;android-36" "build-tools;36.0.0"
+    echo "sdk.dir=$SDK" > local.properties
+install:
+  - ./gradlew --no-daemon :tunnel:publishReleasePublicationToMavenLocal -x lint
